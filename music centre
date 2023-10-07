@@ -1,0 +1,258 @@
+.data
+display: .space 524288  # 256 x 512 x 4
+ 
+menu:   .asciiz "Menu:\n1. cls\n2. stave\n3. note\n4. exit\n"
+prompt: .asciiz "\nEnter your choice: "
+wrong: .asciiz "\nInvalid input. Please try again.\n"
+ 
+mistake:.asciiz "Invalid. Please choose a number from 1 to 3.\n"
+color: .asciiz "Choose a color:\n1) Red\n2) Green\n3) Blue\n"
+red: .word 0xFF0000 #
+green: .word 0x00FF00
+blue: .word 0x0000FF
+ 
+line_color: .word 0xff000000 # value of black, to be used in stave lines
+line_width: .word 2048      # number of bytes in a line (width of the bitmap display)
+ 
+msg: .asciiz "Enter a letter A-G: "
+buffer: .space 2   # reserve 2 bytes, the first byte being for character, second being for the null terminator
+ 
+ 
+.text
+.globl main
+main:
+    # initialize bitmap display
+    li $v0, 0x0005      
+ 
+    # display menu
+    li $v0, 4           #printing string
+    la $a0, menu
+    syscall
+ 
+    # get user input for choice
+    li $v0, 4
+    la $a0, prompt
+    syscall
+    li $v0, 5           # reading integer
+    syscall
+    move $s0, $v0       # save user choice in $s0
+ 
+    # process user choice
+    beq $s0, 1, cls     
+    beq $s0, 2, stave   
+    beq $s0, 3, note
+    beq $s0, 4, exit
+ 
+    # otherwise, get a message saying invalid input
+    li $v0, 4
+    la $a0, wrong
+    syscall
+    j main              # back to main 
+ 
+cls:
+	# ask the user to choose a color
+	li $v0, 4      # print string 
+	la $a0, color
+	syscall
+ 
+	#read the user's choice
+	li $v0, 5      # read integer 
+	syscall
+	move $t0, $v0  # store the user's choice in $t0
+ 
+	# changing background color based on the user's choice
+	beq $t0, 1, set_red
+	beq $t0, 2, set_green
+	beq $t0, 3, set_blue
+	j error
+ 
+set_red:
+lw $t1, red
+j fill_display
+ 
+set_green:
+lw $t1, green
+j fill_display
+ 
+set_blue:
+lw $t1, blue
+j fill_display
+ 
+error:
+# incase invalid input
+li $v0, 4      # print string 
+la $a0, mistake
+syscall
+j main
+ 
+fill_display:
+#fill the display with the chosen color
+li $t2, 0      # row counter
+li $t3, 0      # column counter
+ 
+loop:
+ 
+ 
+mul $t4, $t2, 512   # each row is 512 pixels wide
+add $t4, $t4, $t3   
+sll $t4, $t4, 2     
+la $t5, display     # load the address of the display
+add $t5, $t5, $t4   
+ 
+# store the chosen color in the current pixel
+sw $t1, 0($t5)
+ 
+# column counter + 1
+addi $t3, $t3, 1
+ 
+# check if we've reached the end of the row
+beq $t3, 512, end_row
+ 
+# if not, loop back to process the next pixel
+j loop
+ 
+end_row:
+# row counter + 1
+addi $t2, $t2, 1
+ 
+#check if we've filled the entire display
+beq $t2, 256, main
+ 
+#if not, reset the column counter and loop back to process the next row
+li $t3, 0
+j loop
+ 
+j main
+ 
+ 
+stave:
+ 
+la $t0, display # load the address of the bitmap display
+lw $t1, line_color # loading the line colour from .data
+lw $t2, line_width # same as above but loading line width
+li $t4, 5              # how many lines
+ 
+jal draw_stave
+ 
+j main
+ 
+draw_stave:
+li $t3, 50 # counter for y-coordinate
+li $t5, 0 # line counter
+ 
+draw_line:
+mul $t6, $t3, 2048 
+add $t6, $t6, $t0 # add the display address to get the correct memory location
+li $t7, 0 # counter for x-coordinate
+ 
+draw_pixel:
+sw $t1, ($t6) # draw the pixel with color
+addi $t6, $t6, 4 # move to the next pixel
+addi $t7, $t7, 4 # x-coordinate + 4
+ 
+bne $t7, $t2, draw_pixel # loop until the entire line is drawn
+ 
+addi $t3, $t3, 8       # y-coordinate + 8 so moves down for the next line
+addi $t5, $t5, 1        # line counter + 1
+ 
+bne $t5, $t4, draw_line  # loop until all lines are drawn
+ 
+jr $ra  # back to main
+ 
+ 
+note:
+# message
+li $v0, 4      #print string
+la $a0, msg 
+syscall
+ 
+#read a character from input
+li $v0, 8      # read string
+la $a0, buffer # buffer to store input
+li $a1, 2      # reads only 1 character
+syscall
+ 
+#load the input character into $t0
+lb $t0, buffer
+ 
+# check which note to play
+beq $t0, 'A', play_A
+beq $t0, 'B', play_B
+beq $t0, 'C', play_C
+beq $t0, 'D', play_D
+beq $t0, 'E', play_E
+beq $t0, 'F', play_F
+beq $t0, 'G', play_G
+ 
+# if not A-G, main
+li $v0, 4      # print string 
+la $a0, wrong
+syscall
+j main  
+ 
+play_A:
+li $a0, 69     # a = 69
+li $a1, 500    # duration in ms
+li $a2, 0      # instrument
+li $a3, 100    # volume
+li $v0, 33     # syscall 33 (play note)
+syscall
+j main
+ 
+play_B:
+li $a0, 71     # b = 71
+li $a1, 500    # duration in ms
+li $a2, 0      # instrument
+li $a3, 100    # volume
+li $v0, 33     # syscall 33 (play note)
+syscall
+j main
+ 
+play_C:
+li $a0, 72     # c = 72
+li $a1, 500    # duration in ms
+li $a2, 0      # instrument
+li $a3, 100    # volume
+li $v0, 33     # syscall 33 (play note)
+syscall
+j main
+ 
+play_D:
+li $a0, 74     # d = 74
+li $a1, 500    # duration in ms
+li $a2, 0      # instrument
+li $a3, 100    # volume
+li $v0, 33     # syscall 33 (play note)
+syscall
+j main
+ 
+play_E:
+li $a0, 76     # e = 76
+li $a1, 500    # duration in ms
+li $a2, 0      # instrument
+li $a3, 100    # volume
+li $v0, 33     # syscall 33 (play note)
+syscall
+j main
+ 
+play_F:
+li $a0, 65     # f = 65
+li $a1, 500    # duration in ms
+li $a2, 0      # instrument
+li $a3, 100    # volume
+li $v0, 33     # syscall 33 (play note)
+syscall
+j main
+ 
+play_G:
+li $a0, 67     # g = 67
+li $a1, 500    # duration in ms
+li $a2, 0      # instrument
+li $a3, 100    # volume
+li $v0, 33     # syscall 33 (play note)
+syscall
+j main
+ 
+exit:
+li $v0, 10     # syscall 10 (exit program)
+syscall
