@@ -1,0 +1,454 @@
+import java.io.*;
+import java.util.*;
+ 
+public class PlagiarismChecker {
+ 
+    private static final String[] FILES = {"test1.txt", "test2.txt", "test3.txt", "test4.txt", "test5.txt"};
+    private static final int PHRASE_LENGTH_THRESHOLD = 3;
+ 
+    public static void main(String[] args) {
+        // Calculate word frequencies for each file
+        List<Map<String, Integer>> wordFrequencies = calculateWordFrequencies();
+ 
+        //  Calculate phrase matches between files
+        List<List<String>> phraseMatches = calculatePhraseMatches(wordFrequencies);
+ 
+        // Generate HTML results for individual files
+        generateHtmlResults(wordFrequencies, phraseMatches);
+ 
+        // Generate HTML results for overall comparisons
+        generateOverallResults(wordFrequencies, phraseMatches);
+ 
+        //  Print the notification about the result files creation
+        System.out.println("5 result files have also been created for each of the texts.");
+ 
+        // Perform word frequency lookup in the console
+        performWordFrequencyLookup(wordFrequencies);
+    }
+ 
+    /**
+     * Calculates the word frequencies for each file.
+     * This method loops through each file and calculates word frequencies for each file.
+     * @return List of word frequency maps for each file
+     */
+    private static List<Map<String, Integer>> calculateWordFrequencies() {
+        List<Map<String, Integer>> wordFrequencies = new ArrayList<>();
+        // ArrayList of Maps is created, each Map will store word-frequency pairs for a particular file.
+ 
+        for (String filename : FILES) {
+            Map<String, Integer> frequencyMap = new HashMap<>();
+            // For each file, a new HashMap is created to store the frequency of each word in that file.
+ 
+            try (Scanner scanner = new Scanner(new FileReader(filename))) {
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    String[] words = line.split("\\s+");
+                    // takes out the white-spaces in the code between each word.
+ 
+                    for (String word : words) {
+                        word = word.replaceAll("[^a-zA-Z]", "").toLowerCase();
+                        if (!word.isEmpty()) {
+                            frequencyMap.put(word, frequencyMap.getOrDefault(word, 0) + 1);
+                            // put the word into the map with a value of its old count plus one. 
+                            // If the word was not already in the map, treat its old count as 0."
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+ 
+            wordFrequencies.add(frequencyMap);
+            //storing the results of the word frequency calculation for one file
+        }
+ 
+        return wordFrequencies;
+    }
+ 
+    /**
+     * Calculates the phrase matches between files.
+     * This method calculate the match percentage by dividing matchedWords by totalWords and multiplying by 100. 
+     * We then add this percentage to matches
+     * @param wordFrequencies List of word frequency maps for each file
+     * @return List of phrase match percentages for each file comparison
+     */
+    private static List<List<String>> calculatePhraseMatches(List<Map<String, Integer>> wordFrequencies) {
+        List<List<String>> phraseMatches = new ArrayList<>();
+ 
+        for (int i = 0; i < FILES.length; i++) {
+            List<String> matches = new ArrayList<>();
+            // matches will store the match percentage of the current file compared to every other file.
+ 
+            for (int j = 0; j < FILES.length; j++) {
+                if (i == j) {
+                    matches.add("100%"); // Same file
+                } else {
+                    int totalWords = getTotalWords(wordFrequencies.get(i));
+                    int matchedWords = countMatchedPhraseWords(wordFrequencies.get(i), wordFrequencies.get(j));
+                    // gets the word frequenncy for each map for i and j, then calculates how many words in i are also in j
+                    double percentage = (double) matchedWords / totalWords * 100;
+                    matches.add(String.format("%.2f%%", percentage));
+                    // We calculate the match percentage by dividing matchedWords by totalWords and multiplying by 100. 
+                }
+            }
+ 
+            phraseMatches.add(matches);
+        }
+ 
+        return phraseMatches;
+    }
+ 
+    /**
+     * Gets the total number of words in a word frequency map.
+     * This method takes a Map where keys are words and values are their frequencies. 
+     * It sums up all frequencies to calculate the total number of words in the document.
+     * @param frequencyMap Word frequency map
+     * @return Total number of words
+     */
+    private static int getTotalWords(Map<String, Integer> frequencyMap) {
+        int totalWords = 0;
+ 
+        for (int count : frequencyMap.values()) {
+            totalWords += count;
+            //loops through all frequencies in the wordFrequency map then adds them to total.
+        }
+ 
+        return totalWords;
+    }
+ 
+    /**
+     * Counts the number of matched words in phrase sets between two word frequency maps.
+     * This method basically checks if the phrases which are present in phraseSet1 which is from the freqency map1, is also present in frequency map 2.
+     * @param frequencyMap1 Word frequency map for file 1
+     * @param frequencyMap2 Word frequency map for file 2
+     * @return Number of matched words
+     */
+    private static int countMatchedPhraseWords(Map<String, Integer> frequencyMap1, Map<String, Integer> frequencyMap2) {
+        int matchedWords = 0;
+        Set<String> phraseSet1 = getPhraseSet(frequencyMap1);
+        Set<String> phraseSet2 = getPhraseSet(frequencyMap2);
+        // gets the set of phrases from both frequencyMaps
+ 
+        for (String phrase : phraseSet1) {
+            if (phraseSet2.contains(phrase)) {
+                matchedWords += frequencyMap1.get(phrase);
+                // checks if the current phrase from phraseSet1 is also present in phraseSet2 
+                // then adds the frequency of the matched word to the total count.
+            }
+        }
+ 
+        return matchedWords;
+    }
+ 
+    /**
+     * Gets the set of phrases from a word frequency map.
+     * This method uses a HashSet to store phrases of no longer than 3 words for each frequencyMap.
+     * @param frequencyMap Word frequency map
+     * @return Set of phrases
+     */
+    private static Set<String> getPhraseSet(Map<String, Integer> frequencyMap) {
+        Set<String> phraseSet = new HashSet<>();
+        // This set will be used to store phrases from the input map that are 3 words long
+ 
+        for (String word : frequencyMap.keySet()) {
+            if (word.length() >= PHRASE_LENGTH_THRESHOLD) {
+                phraseSet.add(word);
+                // checks if the length of the current phrase to 3 words
+                //then adds the words to phraseSet
+            }
+        }
+ 
+        return phraseSet;
+    }
+ 
+    /**
+     * Generates HTML results for individual files.
+     *
+     * @param wordFrequencies List of word frequency maps for each file
+     * @param phraseMatches   List of phrase match percentages for each file comparison
+     */
+    private static void generateHtmlResults(List<Map<String, Integer>> wordFrequencies, List<List<String>> phraseMatches) {
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter("results.html"));
+            // will write to a file named results.html, which is being created by FileWriter
+            writer.write("<html><head><style>table, th, td {border: 1px solid black; border-collapse: collapse; padding: 5px;}</style></head><body>");
+            // CSS part which makes the border thicker
+ 
+            writer.write("<h2>Word Frequencies:</h2>");
+            for (int i = 0; i < FILES.length; i++) {
+                writer.write("<h3>File " + (i + 1) + "</h3>");
+                writeWordFrequency(writer, wordFrequencies.get(i));
+                writer.write("<br>");
+                // creates a heading to the file and loops of so writes the word frequency for each file.
+            }
+ 
+            writer.write("<h2>Phrase Matches:</h2>");
+            writer.write("<table>");
+            // start of table
+            writer.write("<tr><th>File</th><th>Comparison</th><th>Phrase Match (%)</th><th>Highlighted Text</th></tr>");
+            for (int i = 0; i < FILES.length; i++) {
+                List<MatchResult> fileMatches = calculateFileMatches(phraseMatches.get(i), i, wordFrequencies);
+                for (MatchResult matchResult : fileMatches) {
+                    writer.write("<tr><td>File " + (matchResult.getFile1() + 1) + "</td><td>File " + (matchResult.getFile2() + 1) + "</td><td>" + matchResult.getMatchPercentage() + "</td><td>" + matchResult.getHighlightedText() + "</td></tr>");
+                }
+            }
+            writer.write("</table>");
+ 
+            writer.write("</body></html>");
+            writer.close();
+ 
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+ 
+    /**
+     * Generates HTML results for overall comparisons.
+     * Same as results.html
+     * @param wordFrequencies List of word frequency maps for each file
+     * @param phraseMatches   List of phrase match percentages for each file comparison
+     */
+    private static void generateOverallResults(List<Map<String, Integer>> wordFrequencies, List<List<String>> phraseMatches) {
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter("overall_results.html"));
+            writer.write("<html><head><style>table, th, td {border: 1px solid black; border-collapse: collapse; padding: 5px;}</style></head><body>");
+ 
+            writer.write("<h2>Overall Results:</h2>");
+ 
+            writer.write("<h2>Word Frequencies:</h2>");
+            for (int i = 0; i < FILES.length; i++) {
+                writer.write("<h3>File " + (i + 1) + "</h3>");
+                writeWordFrequency(writer, wordFrequencies.get(i));
+                writer.write("<br>");
+            }
+ 
+            writer.write("<h2>Phrase Matches:</h2>");
+            writer.write("<table>");
+            writer.write("<tr><th>File</th><th>Comparison</th><th>Phrase Match (%)</th><th>Highlighted Text</th></tr>");
+            for (int i = 0; i < FILES.length; i++) {
+                List<MatchResult> fileMatches = calculateFileMatches(phraseMatches.get(i), i, wordFrequencies);
+                for (MatchResult matchResult : fileMatches) {
+                    writer.write("<tr><td>File " + (matchResult.getFile1() + 1) + "</td><td>File " + (matchResult.getFile2() + 1) + "</td><td>" + matchResult.getMatchPercentage() + "</td><td>" + matchResult.getHighlightedText() + "</td></tr>");
+                }
+            }
+            writer.write("</table>");
+ 
+            writer.write("</body></html>");
+            writer.close();
+ 
+            System.out.println("HTML results for overall comparisons have been generated successfully. Please check the 'overall_results.html' file.");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+ 
+    /**
+     * Writes the word frequencies to the HTML writer.
+     *this method writes the word frequencies stored in frequencyMap to the BufferedWriter in the format "word: frequency", with each word-frequency pair on a new line.
+     * @param writer        HTML writer
+     * @param frequencyMap  Word frequency map
+     * @throws IOException if an I/O error occurs
+     */
+    private static void writeWordFrequency(BufferedWriter writer, Map<String, Integer> frequencyMap) throws IOException {
+        for (Map.Entry<String, Integer> entry : frequencyMap.entrySet()) {
+            writer.write(entry.getKey() + ": " + entry.getValue());
+            //text is composed of the key from entry (a word from the text),  and the value from entry (the frequency of the word in the text).
+            writer.newLine();
+        }
+    }
+ 
+    /**
+     * Calculates the file matches for a specific file.
+     *
+     * @param phraseMatches   List of phrase match percentages for the file
+     * @param fileIndex       Index of the file to calculate matches for
+     * @param wordFrequencies List of word frequency maps for each file
+     * @return List of match results
+     */
+    private static List<MatchResult> calculateFileMatches(List<String> phraseMatches, int fileIndex, List<Map<String, Integer>> wordFrequencies) {
+        List<MatchResult> fileMatches = new ArrayList<>();
+        //This list will be populated with MatchResult objects that represent the match results between different files.
+ 
+        for (int i = 0; i < FILES.length; i++) {
+            if (i == fileIndex) {
+                continue; // Skip self-comparison so dosent compare the same file with itself
+            }
+ 
+            double matchPercentage = Double.parseDouble(phraseMatches.get(i).replace("%", ""));
+            // gets the percentage value from phraseMatches then takes out % and converts to decimal.
+            String highlightedText = getHighlightedText(fileIndex, i, wordFrequencies);
+            fileMatches.add(new MatchResult(fileIndex, i, matchPercentage, highlightedText));
+            //for every comparison between pairs of files, and the results are stored in the fileMatches list.
+        }
+ 
+        fileMatches.sort(Comparator.comparingDouble(MatchResult::getMatchPercentage).reversed());
+        // This line sorts the fileMatches list in descending order based on the match percentage
+ 
+        return fileMatches;
+    }
+ 
+    /**
+     * Gets the highlighted text between two files.
+     *
+     * @param file1          Index of file 1
+     * @param file2          Index of file 2
+     * @param wordFrequencies List of word frequency maps for each file
+     * @return Highlighted text
+     */
+    private static String getHighlightedText(int file1, int file2, List<Map<String, Integer>> wordFrequencies) {
+        try (BufferedReader reader1 = new BufferedReader(new FileReader(FILES[file1]));
+             BufferedReader reader2 = new BufferedReader(new FileReader(FILES[file2]))) {
+            // reads from a file in the FILES array at the given index.
+ 
+            StringBuilder highlightedText = new StringBuilder();
+ 
+            String line1 = reader1.readLine();
+            String line2 = reader2.readLine();
+            int sentenceCounter = 1;
+            //line1 and line2 are created, each containing a line read from the file
+ 
+            while (line1 != null && line2 != null) {
+                highlightedText.append("<b>Sentence ").append(sentenceCounter).append(" (File ").append(file1 + 1).append("):</b> ").append(line1).append("<br>");
+                highlightedText.append("<b>Sentence ").append(sentenceCounter).append(" (File ").append(file2 + 1).append("):</b> ").append(line2).append("<br>");
+                // These two lines append the sentence numbers, the file numbers, and the lines read from both files, into highlightedText.
+ 
+                String[] words1 = line1.split("\\s+");
+                String[] words2 = line2.split("\\s+");
+                // split line1 and line2 into arrays of words by removing the whitespaces
+ 
+                for (String word1 : words1) {
+                    String cleanWord1 = word1.replaceAll("[^a-zA-Z]", "").toLowerCase();
+                    //creates a clean version of the word by removing all non-alphabetical characters and converting to lowercase
+                    if (!cleanWord1.isEmpty() &&  isWordInFile(file2, cleanWord1, wordFrequencies)) {
+                        highlightedText.append("<mark>").append(word1).append("</mark>").append(" ");
+                    } else {
+                        highlightedText.append(word1).append(" ");
+                        // if the word exists in file 2 it appends the word surrounded by <mark> HTML tags to highlightedText
+                    }
+                }
+ 
+                highlightedText.append("<br>");
+ 
+                for (String word2 : words2) {
+                    String cleanWord2 = word2.replaceAll("[^a-zA-Z]", "").toLowerCase();
+                    if (!cleanWord2.isEmpty() && isWordInFile(file1, cleanWord2, wordFrequencies)) {
+                        highlightedText.append("<mark>").append(word2).append("</mark>").append(" ");
+                    } else {
+                        highlightedText.append(word2).append(" ");
+                        // same as above but comparing to file 1
+                    }
+                }
+ 
+                highlightedText.append("<br><br>");
+ 
+                line1 = reader1.readLine();
+                line2 = reader2.readLine();
+                sentenceCounter++;
+                //Read the next lines from both files and increment the sentenceCounter
+            }
+ 
+            return highlightedText.toString();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+ 
+    /**
+     * Checks if a word is present in a file's word frequency map.
+     *
+     * @param fileIndex      Index of the file to check
+     * @param word           Word to check
+     * @param wordFrequencies List of word frequency maps for each file
+     * @return True if the word is present, false otherwise
+     */
+    private static boolean isWordInFile(int fileIndex, String word, List<Map<String, Integer>> wordFrequencies) {
+        Map<String, Integer> frequencyMap = wordFrequencies.get(fileIndex);
+        //This line retrieves a frequency map for a file specified by fileIndex from wordFrequencies.
+        return frequencyMap.containsKey(word);
+        //If the word exists in the map (and thus in the file), the method returns true
+    }
+ 
+    /**
+     * Represents a match result between two files.
+     */
+    private static class MatchResult {
+        private final int file1;
+        private final int file2;
+        private final double matchPercentage;
+        private final String highlightedText;
+        //final, they can only be assigned once, during object construction.
+ 
+        public MatchResult(int file1, int file2, double matchPercentage, String highlightedText) {
+            this.file1 = file1;
+            this.file2 = file2;
+            this.matchPercentage = matchPercentage;
+            this.highlightedText = highlightedText;
+        }
+ 
+        public int getFile1() {
+            return file1;
+        }
+ 
+        public int getFile2() {
+            return file2;
+        }
+ 
+        public double getMatchPercentage() {
+            return matchPercentage;
+        }
+ 
+        public String getHighlightedText() {
+            return highlightedText;
+        }
+    }
+ 
+    /**
+     * Performs word frequency lookup in the console.
+     *
+     * @param wordFrequencies List of word frequency maps for each file
+     */
+    private static void performWordFrequencyLookup(List<Map<String, Integer>> wordFrequencies) {
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            //it is used to read user input from the console.
+ 
+            System.out.println("Word Frequency Lookup:");
+            while (true) {
+                System.out.println("Enter the file number (1-" + FILES.length + ") or enter 'q' to quit:");
+                String fileInput = reader.readLine().trim();
+                //This line reads the input from the user, trims whitespace from the ends, and assigns it to the fileInput variable.
+                if (fileInput.equalsIgnoreCase("q")) {
+                    // if its a "q" breaks out the loop, ending the program.
+                    break;
+                }
+ 
+                int fileNumber;
+                try {
+                    fileNumber = Integer.parseInt(fileInput);
+                    if (fileNumber < 1 || fileNumber > FILES.length) {
+                        System.out.println("Invalid file number. Please try again.");
+                        continue;
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid input. Please try again.");
+                    // If the parsing fails (the input is not a valid integer) catch block statement is printed.
+                    continue;
+                }
+ 
+                System.out.println("Enter the word to look up:");
+                String word = reader.readLine().trim().toLowerCase();
+                // trims teh whitespaces from teh ends and coverts to lowercase and assigns it to "word".
+ 
+                Map<String, Integer> frequencyMap = wordFrequencies.get(fileNumber - 1);
+                //This line retrieves the word frequency map for the chosen file.
+                int frequency = frequencyMap.getOrDefault(word, 0);
+                //retrieves the frequency of the entered word in the chosen file. If the word is not found in the map, it defaults to 0.
+                System.out.println("Frequency of word '" + word + "' in File " + fileNumber + ": " + frequency);
+                System.out.println();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
